@@ -1,0 +1,66 @@
+{
+  "_instructions": "Fill this file once. All fields are used during auto-fill. Delete this _instructions key when done.",
+
+  "basic": {
+    "first_name": "Jane",
+    "last_name": "Smith",
+    "email": "jane@email.com",
+    "phone": "555-123-4567",
+    "location": "San Francisco, CA",
+    "linkedin": "https://linkedin.com/in/janesmith",
+    "github": "https://github.com/janesmith",
+    "portfolio": "",
+    "pronouns": ""
+  },
+
+  "education": {
+    "school": "State University",
+    "degree": "Bachelor of Science",
+    "major": "Computer Science",
+    "gpa": "3.7",
+    "graduation_month": "May",
+    "graduation_year": "2025",
+    "currently_enrolled": true
+  },
+
+  "experience": [
+    {
+      "title": "ML Engineering Intern",
+      "company": "TechCorp",
+      "start": "June 2023",
+      "end": "August 2023",
+      "description": "Built real-time inference pipeline using FastAPI and PyTorch, reducing latency by 40%."
+    }
+  ],
+
+  "skills": [
+    "Python", "PyTorch", "TensorFlow", "SQL", "Docker", "AWS", "React", "Node.js"
+  ],
+
+  "work_authorization": {
+    "authorized_us": true,
+    "requires_sponsorship": false,
+    "visa_type": ""
+  },
+
+  "demographic": {
+    "_note": "These are optional — only fill what you're comfortable sharing. Many Greenhouse/Lever forms ask these.",
+    "gender": "",
+    "ethnicity": "",
+    "veteran_status": "I am not a veteran",
+    "disability_status": "I don't wish to answer"
+  },
+
+  "resume_path": "resume.pdf",
+
+  "cover_letter_template": "I am excited to apply for the {role} position at {company}. My background in {top_skills} aligns well with this opportunity. I look forward to contributing to your team.",
+
+  "common_answers": {
+    "why_interested": "I'm excited about this role because it aligns with my passion for building scalable software and solving real-world problems.",
+    "strengths": "Strong problem-solving skills, collaborative mindset, and experience shipping production-level code.",
+    "salary_expectation": "",
+    "start_date": "June 2025",
+    "hours_per_week": "40",
+    "remote_preference": "Open to remote or hybrid"
+  }
+}
