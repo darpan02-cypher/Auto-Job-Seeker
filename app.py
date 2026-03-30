@@ -23,6 +23,19 @@ st.markdown("""
         color: #f8fafc;
     }
     
+    /* Tighten Main Container */
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 0rem !important;
+        max-width: 95% !important;
+    }
+    
+    /* Remove Header Gaps */
+    h1, h2, h3 {
+        margin-top: -1rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+
     /* Modern Rounded Corners & Buttons */
     .stButton>button {
         border-radius: 6px;
@@ -31,6 +44,8 @@ st.markdown("""
         transition: all 0.2s ease-in-out;
         border: 1px solid rgba(255, 255, 255, 0.05) !important;
         background-color: #1e293b !important;
+        padding: 0.2rem 0.5rem !important;
+        height: auto !important;
     }
     
     .stButton>button:hover {
@@ -49,26 +64,29 @@ st.markdown("""
 
     /* Individual Job Card Style */
     .job-card {
-        padding: 1.2rem;
+        padding: 0.5rem 1rem !important; /* Extremely tight */
         background-color: #0f172a;
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 12px;
-        margin-bottom: 0.75rem;
-        transition: border 0.3s ease;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05); /* Thin line instead of divider */
+        margin-bottom: 0px !important;
     }
     
     .job-card:hover {
-        border: 1px solid rgba(99, 102, 241, 0.3);
+        background-color: #1e293b;
     }
 
     /* Compact row headers */
     .row-header {
         color: #64748b;
-        font-size: 0.75rem;
+        font-size: 0.7rem;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.1em;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.2rem;
+    }
+
+    /* Tighten Text Spacing */
+    .stMarkdown div p {
+        line-height: 1.2 !important;
     }
 
     /* Target specific Streamlit elements */
@@ -78,17 +96,25 @@ st.markdown("""
     }
     
     .stTabs [data-baseweb="tab-list"] {
-        gap: 2rem;
+        gap: 1.5rem;
         background-color: transparent;
+        margin-top: -1.5rem !important;
     }
     
     .stTabs [data-baseweb="tab"] {
         font-weight: 600;
         color: #64748b;
+        padding-top: 0px !important;
+        padding-bottom: 0px !important;
     }
     
     .stTabs [aria-selected="true"] {
         color: #f8fafc !important;
+    }
+
+    /* Thinner Dividers */
+    hr {
+        margin: 0.5rem 0px !important;
     }
 
     #MainMenu {visibility: hidden;}
@@ -282,6 +308,7 @@ with tab1:
             # Unique ID for buttons
             uid = f"{i}_{hash(url_key)}"
 
+            st.write('<div style="margin-top: -10px;"></div>', unsafe_allow_html=True) # Negative spacer
             col_info, col_auto, col_done, col_skip = st.columns([5, 1.2, 1.2, 1], gap="small")
             
             with col_info:
@@ -315,7 +342,7 @@ with tab1:
                     time.sleep(0.5)
                     st.rerun()
             
-            st.divider()
+            st.write('<hr style="margin: 2px 0px; border: 0.1px solid rgba(255,255,255,0.05);">', unsafe_allow_html=True)
 
         if len(pending) > st.session_state["display_limit"]:
             if st.button("➕ Load More Jobs", use_container_width=True):
