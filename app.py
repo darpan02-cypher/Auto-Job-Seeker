@@ -13,6 +13,21 @@ from autofill import autofill, detect_platform
 # --- Config ---
 st.set_page_config(page_title="Auto-Job-Seeker Dashboard", page_icon="🎯", layout="wide")
 
+# --- Auto-Install Playwright for Streamlit Cloud ---
+if "playwright_installed" not in st.session_state:
+    try:
+        # Check if playwright is working. If not, install.
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as pw:
+            pw.chromium.executable_path
+        st.session_state["playwright_installed"] = True
+    except Exception:
+        # Install chromium binaries only if they are missing
+        st.info("🔧 First-time setup: Installing browser binaries...")
+        os.system("playwright install chromium")
+        st.session_state["playwright_installed"] = True
+        st.rerun()
+
 import subprocess
 import socket
 
