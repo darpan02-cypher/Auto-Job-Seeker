@@ -95,7 +95,7 @@ with tab1:
     
     # --- Filters ---
     st.subheader("Filters")
-    col_f1, col_f2 = st.columns(2)
+    col_f1, col_f2, col_f3 = st.columns(3)
     
     with col_f1:
         time_filter = st.radio("Actual Posted Date:", ["Any time", "Past 24 hours", "Past Week"], horizontal=True)
@@ -104,9 +104,36 @@ with tab1:
         all_sources = sorted(list(set(j.get("source", "Unknown") for j in pending)))
         selected_sources = st.multiselect("Source:", options=all_sources, default=all_sources)
 
+    with col_f3:
+        regions = ["US", "Canada", "UK", "Europe", "Remote"]
+        selected_regions = st.multiselect("Quick Region Filter:", options=regions, default=[])
+        location_keyword = st.text_input("City/Keyword Search:", "").lower().strip()
+
+    # Apply Source Filter
     if selected_sources and len(selected_sources) != len(all_sources):
         pending = [j for j in pending if j.get("source", "Unknown") in selected_sources]
     
+    # Apply Region Filter
+    if selected_regions:
+        def match_region(job_loc):
+            loc = job_loc.lower()
+            matches = []
+            if any(k in loc for k in ["ca", "canada", "toronto", "vancouver", "montreal", "ottawa"]): matches.append("Canada")
+            if any(k in loc for k in ["uk", "united kingdom", "london", "manchester", "birmingham"]): matches.append("UK")
+            if any(k in loc for k in ["remote", "anywhere", "global"]): matches.append("Remote")
+            if any(k in loc for k in ["us", "usa", "united states", "san francisco", "new york", "austin"]): matches.append("US")
+            # Fallback for Europe if not UK
+            if "uk" not in loc and any(k in loc for k in ["europe", "germany", "berlin", "paris", "france", "amsterdam", "netherlands", "spain", "italy"]): matches.append("Europe")
+            
+            return any(r in matches for r in selected_regions)
+        
+        pending = [j for j in pending if match_region(j.get("location", ""))]
+
+    # Apply Manual Keyword Filter
+    if location_keyword:
+        pending = [j for j in pending if location_keyword in j.get("location", "").lower()]
+    
+    # Apply Time Filter
     if time_filter != "Any time":
         max_hours = 24 if time_filter == "Past 24 hours" else 168
         

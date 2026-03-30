@@ -1,5 +1,8 @@
 # Job Apply Tool — with Auto-fill
 
+### imp command for dashboard - 
+### python3 -m streamlit run app.py
+
 ## First time setup
 
 ```bash
@@ -132,7 +135,7 @@ A powerful, automated job application tool that finds internships (SWE, Data Sci
 
 ---
 
-## 🚀 Quick Start (For New Systems)
+## 🚀 Quick Start (into your local system)
 
 To run this project on a new machine, follow these steps:
 
