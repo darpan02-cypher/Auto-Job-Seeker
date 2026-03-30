@@ -1,65 +1,84 @@
 {
-  "_instructions": "Fill this file once. All fields are used during auto-fill. Delete this _instructions key when done.",
-
   "basic": {
-    "first_name": "Jane",
-    "last_name": "Smith",
-    "email": "jane@email.com",
-    "phone": "555-123-4567",
-    "location": "San Francisco, CA",
-    "linkedin": "https://linkedin.com/in/janesmith",
-    "github": "https://github.com/janesmith",
+    "first_name": "Himanshi",
+    "last_name": "Shrivas",
+    "email": "himanshishrvs0007@gmail.com",
+    "phone": "704-293-1718",
+    "location": "Charlotte, NC",
+    "linkedin": "https://linkedin.com/in/himanshishrivas",
+    "github": "https://github.com/darpan02-cypher",
     "portfolio": "",
-    "pronouns": ""
+    "pronouns": "She/Her"
   },
 
   "education": {
-    "school": "State University",
-    "degree": "Bachelor of Science",
-    "major": "Computer Science",
-    "gpa": "3.7",
-    "graduation_month": "May",
-    "graduation_year": "2025",
+    "school": "University of North Carolina at Charlotte",
+    "degree": "Master of Science",
+    "major": "Information Technology",
+    "gpa": "",
+    "graduation_month": "December",
+    "graduation_year": "2026",
     "currently_enrolled": true
   },
 
   "experience": [
     {
-      "title": "ML Engineering Intern",
-      "company": "TechCorp",
-      "start": "June 2023",
-      "end": "August 2023",
-      "description": "Built real-time inference pipeline using FastAPI and PyTorch, reducing latency by 40%."
+      "title": "Teaching Assistant",
+      "company": "UNCC",
+      "start": "May 2025",
+      "end": "Present",
+      "description": "Mentored 80-100+ students in software engineering and data analytics, covering Agile methodologies, ML/AI model development, and Python-based analytics."
+    },
+    {
+      "title": "Senior Software Engineer",
+      "company": "Capgemini Technologies",
+      "start": "Oct 2021",
+      "end": "Dec 2024",
+      "description": "Engineered scalable applications using Java/Spring Boot in a microservices architecture. Pioneered CI/CD pipeline analysis with Jenkins and AWS."
+    },
+    {
+      "title": "Web Developer Intern",
+      "company": "Alsoft Solutions",
+      "start": "Feb 2021",
+      "end": "Jun 2021",
+      "description": "Proposed and developed an integrated cloud-based platform for healthcare data exchange and automated workflows."
+    },
+    {
+      "title": "Developer Intern",
+      "company": "Blucursor Technologies",
+      "start": "Jul 2020",
+      "end": "Oct 2020",
+      "description": "Worked on an AI-based attendance system using computer vision (OpenCV, CNNs) for real-time face recognition."
     }
   ],
 
   "skills": [
-    "Python", "PyTorch", "TensorFlow", "SQL", "Docker", "AWS", "React", "Node.js"
+    "Python", "Java", "JavaScript", "SQL", "Spring Boot", "React", "Django", "Scikit-learn", "XGBoost", "AWS", "Docker", "Kubernetes", "Jenkins"
   ],
 
   "work_authorization": {
     "authorized_us": true,
-    "requires_sponsorship": false,
-    "visa_type": ""
+    "requires_sponsorship": true,
+    "visa_type": "F1"
   },
 
   "demographic": {
-    "_note": "These are optional — only fill what you're comfortable sharing. Many Greenhouse/Lever forms ask these.",
-    "gender": "",
-    "ethnicity": "",
+    "_note": "These are optional — only fill what you're comfortable sharing.",
+    "gender": "Female",
+    "ethnicity": "Asian",
     "veteran_status": "I am not a veteran",
     "disability_status": "I don't wish to answer"
   },
 
-  "resume_path": "resume.pdf",
+  "resume_path": "/Users/himanshishrivas/Downloads/Auto-Job-Seeker/HIMANSHI SHRIVAS-Resume(march2026).pdf",
 
   "cover_letter_template": "I am excited to apply for the {role} position at {company}. My background in {top_skills} aligns well with this opportunity. I look forward to contributing to your team.",
 
   "common_answers": {
-    "why_interested": "I'm excited about this role because it aligns with my passion for building scalable software and solving real-world problems.",
-    "strengths": "Strong problem-solving skills, collaborative mindset, and experience shipping production-level code.",
+    "why_interested": "I'm excited about this opportunity because it aligns with my experience building scalable systems and my passion for software engineering and machine learning.",
+    "strengths": "Strong problem-solving skills, experience with full-stack development and cloud architectures, and a collaborative mindset.",
     "salary_expectation": "",
-    "start_date": "June 2025",
+    "start_date": "January 2027",
     "hours_per_week": "40",
     "remote_preference": "Open to remote or hybrid"
   }
