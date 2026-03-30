@@ -11,7 +11,93 @@ from fetch_jobs import fetch_all
 from autofill import autofill, detect_platform
 
 # --- Config ---
-st.set_page_config(page_title="Auto-Job-Seeker UI", page_icon="🎯", layout="wide")
+st.set_page_config(page_title="Auto-Job-Seeker Dashboard", page_icon="🎯", layout="wide")
+
+# --- Custom Style for Premium Look ---
+st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    
+    html, body, [class*="css"]  {
+        font-family: 'Inter', sans-serif;
+        color: #f8fafc;
+    }
+    
+    /* Modern Rounded Corners & Buttons */
+    .stButton>button {
+        border-radius: 6px;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+        transition: all 0.2s ease-in-out;
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        background-color: #1e293b !important;
+    }
+    
+    .stButton>button:hover {
+        transform: translateY(-1px);
+        background-color: #334155 !important;
+        border: 1px solid #6366f1 !important;
+        box-shadow: 0 10px 20px -10px rgba(99, 102, 241, 0.5);
+    }
+    
+    /* Primary Action Button (Auto-Fill) */
+    div.stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
+        border: none !important;
+        color: white !important;
+    }
+
+    /* Individual Job Card Style */
+    .job-card {
+        padding: 1.2rem;
+        background-color: #0f172a;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        margin-bottom: 0.75rem;
+        transition: border 0.3s ease;
+    }
+    
+    .job-card:hover {
+        border: 1px solid rgba(99, 102, 241, 0.3);
+    }
+
+    /* Compact row headers */
+    .row-header {
+        color: #64748b;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-bottom: 0.5rem;
+    }
+
+    /* Target specific Streamlit elements */
+    [data-testid="stSidebar"] {
+        background-color: #020617;
+        border-right: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 2rem;
+        background-color: transparent;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        font-weight: 600;
+        color: #64748b;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        color: #f8fafc !important;
+    }
+
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    </style>
+""", unsafe_allow_html=True)
+
+if "display_limit" not in st.session_state:
+    st.session_state["display_limit"] = 20
 
 JOBS_FILE = "jobs.json"
 APPLIED_FILE = "applied.json"
@@ -180,63 +266,63 @@ with tab1:
         pending = filtered_pending
 
     if pending:
-        # Create a dropdown to select a job
-        job_options = { f"{j['company']} — {j['title']} ({j.get('category', 'SWE')})": j for j in pending }
+        st.subheader(f"Showing {min(len(pending), st.session_state['display_limit'])} of {len(pending)} jobs")
         
-        selected_key = st.selectbox("Select a job to apply to:", options=list(job_options.keys()))
-        selected_job = job_options[selected_key]
-        
-        platform = detect_platform(selected_job["apply_url"])
-        
-        st.markdown(f"### {selected_job['company']} - {selected_job['title']}")
-        st.markdown(f"**Location:** {selected_job['location']} | **Source:** {selected_job['source']} | **Platform:** `{platform}`")
-        st.markdown(f"[🔗 Direct Link]({selected_job['apply_url']})")
-        
-        st.divider()
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            if st.button("🤖 1. Auto-Fill Application", type="primary", use_container_width=True):
-                # Using st.spinner to show UI feedback while Playwright blocks
-                with st.spinner("Browser is open! Fill the form, submit, and CLOSE the browser window when done."):
-                    # Inject for cover letter resolution
-                    profile["_current_job_title"] = selected_job["title"]
-                    profile["_current_company"] = selected_job["company"]
-                    
-                    try:
-                        success = autofill(selected_job["apply_url"], profile, headless=False, streamlit_mode=True)
-                        if success:
-                            st.success("✅ Script finished. Don't forget to mark as applied!")
-                    except Exception as e:
-                        st.error(f"Error during auto-fill: {e}")
+        # Header Row - Styled with Custom CSS
+        h1, h2, h3, h4 = st.columns([5, 1.2, 1.2, 1], gap="small")
+        h1.markdown('<p class="row-header">Job Information</p>', unsafe_allow_html=True)
+        h2.markdown('<p class="row-header">Auto-Fill</p>', unsafe_allow_html=True)
+        h3.markdown('<p class="row-header">Applied</p>', unsafe_allow_html=True)
+        h4.markdown('<p class="row-header">Skip</p>', unsafe_allow_html=True)
 
-        with col2:
-            if st.button("✅ 2. Mark as Applied", use_container_width=True):
-                key = normalize(selected_job["apply_url"])
-                applied[key] = make_record(selected_job, "applied")
-                save_applied(applied)
-                st.toast(f"Logged {selected_job['company']} as Applied!")
-                time.sleep(1)
-                st.rerun()
-                
-        with col3:
-            if st.button("⏭️ Skip Job", use_container_width=True):
-                key = normalize(selected_job["apply_url"])
-                applied[key] = make_record(selected_job, "skipped")
-                save_applied(applied)
-                st.toast(f"Skipped {selected_job['company']}")
-                time.sleep(1)
-                st.rerun()
-                
-        st.divider()
-        st.subheader("All Pending Jobs")
-        # Display as a clean dataframe
-        df = pd.DataFrame(pending)[["company", "title", "category", "location", "source", "apply_url"]]
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        for i, job in enumerate(pending[:st.session_state["display_limit"]]):
+            url_key = normalize(job["apply_url"])
+            platform = detect_platform(job["apply_url"])
+            
+            # Unique ID for buttons
+            uid = f"{i}_{hash(url_key)}"
 
+            col_info, col_auto, col_done, col_skip = st.columns([5, 1.2, 1.2, 1], gap="small")
+            
+            with col_info:
+                st.write(f"**{job['company']}** — {job['title']} [🔗]({job['apply_url']})")
+                st.caption(f"📍 {job['location']} | {job['source']} | `{platform.upper()}`")
+
+            with col_auto:
+                if st.button("🤖 Auto-Fill", key=f"auto_{uid}", use_container_width=True, type="primary"):
+                    with st.spinner("Filling..."):
+                        profile["_current_job_title"] = job["title"]
+                        profile["_current_company"] = job["company"]
+                        try:
+                            autofill(job["apply_url"], profile, headless=False, streamlit_mode=True)
+                            st.success("Success!")
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+
+            with col_done:
+                if st.button("✅ Done", key=f"done_{uid}", use_container_width=True):
+                    applied[url_key] = make_record(job, "applied")
+                    save_applied(applied)
+                    st.toast(f"Applied to {job['company']}")
+                    time.sleep(0.5)
+                    st.rerun()
+
+            with col_skip:
+                if st.button("⏭️ Skip", key=f"skip_{uid}", use_container_width=True):
+                    applied[url_key] = make_record(job, "skipped")
+                    save_applied(applied)
+                    st.toast(f"Skipped {job['company']}")
+                    time.sleep(0.5)
+                    st.rerun()
+            
+            st.divider()
+
+        if len(pending) > st.session_state["display_limit"]:
+            if st.button("➕ Load More Jobs", use_container_width=True):
+                st.session_state["display_limit"] += 20
+                st.rerun()
     else:
-        st.info("No pending jobs! Click 'Fetch New Jobs' in the sidebar to find more.")
+        st.info("No pending jobs matches your filters! Click 'Fetch New Jobs' in the sidebar or adjust your filters.")
 
 with tab2:
     st.header("Analytics")
