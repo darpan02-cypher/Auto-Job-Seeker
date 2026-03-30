@@ -2,7 +2,7 @@
   "basic": {
     "first_name": "Himanshi",
     "last_name": "Shrivas",
-    "email": "himanshishrvs0007@gmail.com",
+    "email": "hshrivas0007@gmail.com",
     "phone": "704-293-1718",
     "location": "Charlotte, NC",
     "linkedin": "https://linkedin.com/in/himanshishrivas",
@@ -10,7 +10,6 @@
     "portfolio": "",
     "pronouns": "She/Her"
   },
-
   "education": {
     "school": "University of North Carolina at Charlotte",
     "degree": "Master of Science",
@@ -20,7 +19,6 @@
     "graduation_year": "2026",
     "currently_enrolled": true
   },
-
   "experience": [
     {
       "title": "Teaching Assistant",
@@ -51,17 +49,26 @@
       "description": "Worked on an AI-based attendance system using computer vision (OpenCV, CNNs) for real-time face recognition."
     }
   ],
-
   "skills": [
-    "Python", "Java", "JavaScript", "SQL", "Spring Boot", "React", "Django", "Scikit-learn", "XGBoost", "AWS", "Docker", "Kubernetes", "Jenkins"
+    "Python",
+    "Java",
+    "JavaScript",
+    "SQL",
+    "Spring Boot",
+    "React",
+    "Django",
+    "Scikit-learn",
+    "XGBoost",
+    "AWS",
+    "Docker",
+    "Kubernetes",
+    "Jenkins"
   ],
-
   "work_authorization": {
     "authorized_us": true,
     "requires_sponsorship": true,
     "visa_type": "F1"
   },
-
   "demographic": {
     "_note": "These are optional — only fill what you're comfortable sharing.",
     "gender": "Female",
@@ -69,11 +76,8 @@
     "veteran_status": "I am not a veteran",
     "disability_status": "I don't wish to answer"
   },
-
   "resume_path": "/Users/himanshishrivas/Downloads/Auto-Job-Seeker/HIMANSHI SHRIVAS-Resume(march2026).pdf",
-
   "cover_letter_template": "I am excited to apply for the {role} position at {company}. My background in {top_skills} aligns well with this opportunity. I look forward to contributing to your team.",
-
   "common_answers": {
     "why_interested": "I'm excited about this opportunity because it aligns with my experience building scalable systems and my passion for software engineering and machine learning.",
     "strengths": "Strong problem-solving skills, experience with full-stack development and cloud architectures, and a collaborative mindset.",

@@ -324,7 +324,7 @@ def _click_radio_no(page, keyword: str):
 
 # ─── Main entry point ─────────────────────────────────────────────────────────
 
-def autofill(url: str, profile: dict, headless: bool = False):
+def autofill(url: str, profile: dict, headless: bool = False, streamlit_mode: bool = False):
     """
     Open the apply URL in a real browser, fill the form, then pause.
     headless=False so you can see and review everything.
@@ -364,8 +364,16 @@ def autofill(url: str, profile: dict, headless: bool = False):
 
         print("\n  ✅ Form filled. Browser is open.")
         print("  👀 Review everything carefully before submitting.")
-        print("  Press ENTER here when you're done (this closes the browser)...")
-        input()
+        
+        if streamlit_mode:
+            print("  ⏳ Waiting for you to close the browser (Streamlit mode)...")
+            try:
+                page.wait_for_event("close", timeout=0)
+            except Exception:
+                pass
+        else:
+            print("  Press ENTER here when you're done (this closes the browser)...")
+            input()
 
         browser.close()
 

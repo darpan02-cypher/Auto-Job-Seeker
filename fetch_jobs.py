@@ -33,6 +33,7 @@ class Job:
     source: str
     category: str = ""
     age: str = ""
+    posted_at: str = ""
     fetched_at: str = ""
 
     def key(self) -> str:
@@ -138,6 +139,7 @@ def fetch_remotive(roles=None) -> list[Job]:
                     apply_url=item.get("url", ""),
                     source="Remotive",
                     category="SWE" if "engineer" in item.get("title","").lower() else "Data Science",
+                    posted_at=item.get("publication_date", ""),
                     fetched_at=datetime.now().isoformat(),
                 ))
             time.sleep(1)
@@ -172,6 +174,7 @@ def fetch_greenhouse(role_keywords=None) -> list[Job]:
                     apply_url=item.get("absolute_url", ""),
                     source="Greenhouse",
                     category="Data Science" if any(k in title.lower() for k in ["data", "ml", "machine learning"]) else "SWE",
+                    posted_at=item.get("updated_at", ""),
                     fetched_at=datetime.now().isoformat(),
                 ))
             time.sleep(0.5)
