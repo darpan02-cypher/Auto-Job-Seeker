@@ -43,25 +43,26 @@ class Job:
         return asdict(self)
 
 
-def fetch_zapplyjobs_github() -> list[Job]:
-    url = "https://github.com/zapplyjobs/Internships-2026"
+def fetch_github_repo_jobs(url: str, source_name: str, default_category: str = "SWE") -> list[Job]:
+    """Generic scraper for GitHub internship README tables."""
     jobs = []
     try:
         resp = requests.get(url, headers=HEADERS, timeout=15)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
         tables = soup.find_all("table")
-        log.info(f"GitHub zapplyjobs: found {len(tables)} tables")
+        log.info(f"{source_name}: found {len(tables)} tables")
 
-        current_category = "SWE"
+        current_category = default_category
+        # We walk all elements to catch headers that define categories (common in US repo)
         all_elements = soup.find_all(["h1", "h2", "h3", "h4", "table"])
 
         for el in all_elements:
             if el.name in ("h1", "h2", "h3", "h4"):
                 text = el.get_text().lower()
-                if any(kw in text for kw in ["data science", "data"]):
+                if any(kw in text for kw in ["data science", "data", "analyst"]):
                     current_category = "Data Science"
-                elif any(kw in text for kw in ["swe", "software", "fresh", "faang", "tech", "enterprise"]):
+                elif any(kw in text for kw in ["swe", "software", "engineering", "dev"]):
                     current_category = "SWE"
 
             elif el.name == "table":
@@ -70,16 +71,18 @@ def fetch_zapplyjobs_github() -> list[Job]:
                     continue
                 header_cells = rows[0].find_all(["th", "td"])
                 headers = [c.get_text(strip=True).lower() for c in header_cells]
-                if not any("apply" in h for h in headers):
+                
+                # Minimum requirement: must have a link column
+                if not any("apply" in h or "link" in h for h in headers):
                     continue
 
                 col_map = {}
                 for i, h in enumerate(headers):
                     if "company" in h:                              col_map["company"] = i
-                    elif "role" in h or "position" in h or "program" in h: col_map["role"] = i
+                    elif any(kw in h for kw in ["role", "position", "program", "opportunity"]): col_map["role"] = i
                     elif "location" in h:                           col_map["location"] = i
-                    elif "apply" in h:                              col_map["apply"] = i
-                    elif "age" in h:                                col_map["age"] = i
+                    elif "apply" in h or "link" in h:               col_map["apply"] = i
+                    elif any(kw in h for kw in ["age", "posted", "date"]): col_map["age"] = i
 
                 if "apply" not in col_map:
                     continue
@@ -97,12 +100,18 @@ def fetch_zapplyjobs_github() -> list[Job]:
                         idx = col_map.get(key)
                         if idx is None or idx >= len(cells):
                             return ""
+                        # Check for <a> tag
                         a = cells[idx].find("a")
-                        return a["href"] if a and a.get("href") else ""
+                        if a and a.get("href"):
+                            return a["href"]
+                        # Check for markdown style link inside text if BS4 missed it
+                        text = cells[idx].get_text()
+                        match = re.search(r'\]\((https?://[^\)]+)\)', text)
+                        return match.group(1) if match else ""
 
                     company   = cell_text("company")
                     role      = cell_text("role")
-                    location  = cell_text("location") or "US"
+                    location  = cell_text("location") or "Remote/Global"
                     apply_url = cell_link("apply")
                     age       = cell_text("age")
 
@@ -111,15 +120,24 @@ def fetch_zapplyjobs_github() -> list[Job]:
 
                     jobs.append(Job(
                         title=role, company=company, location=location,
-                        apply_url=apply_url, source="GitHub/zapplyjobs",
+                        apply_url=apply_url, source=source_name,
                         category=current_category, age=age,
                         fetched_at=datetime.now().isoformat(),
                     ))
 
-        log.info(f"GitHub zapplyjobs: {len(jobs)} jobs parsed")
+        log.info(f"{source_name}: {len(jobs)} jobs parsed")
     except Exception as e:
-        log.error(f"GitHub zapplyjobs failed: {e}")
+        log.error(f"{source_name} failed: {e}")
     return jobs
+
+def fetch_zapplyjobs_github() -> list[Job]:
+    return fetch_github_repo_jobs("https://github.com/zapplyjobs/Internships-2026", "GitHub/Global")
+
+def fetch_canada_github() -> list[Job]:
+    return fetch_github_repo_jobs("https://github.com/negarprh/Canadian-Tech-Internships-2026", "GitHub/Canada")
+
+def fetch_europe_github() -> list[Job]:
+    return fetch_github_repo_jobs("https://github.com/soongenwong/Europe-Tech-Internships-2026", "GitHub/Europe")
 
 
 def fetch_remotive(roles=None) -> list[Job]:
@@ -152,6 +170,8 @@ def fetch_remotive(roles=None) -> list[Job]:
 GREENHOUSE_COMPANIES = [
     "anthropic", "openai", "stripe", "airbnb", "notion",
     "figma", "vercel", "databricks", "scale", "cohere",
+    "shopify", "wealthsimple", "hootsuite", "revolut",
+    "monzo", "deliveroo", "zalando", "spotify", "klarna", "mangroup",
 ]
 
 def fetch_greenhouse(role_keywords=None) -> list[Job]:
@@ -207,6 +227,8 @@ def load(path="jobs.json") -> list[Job]:
 def fetch_all(out_path="jobs.json") -> list[Job]:
     all_jobs = []
     all_jobs += fetch_zapplyjobs_github()
+    all_jobs += fetch_canada_github()
+    all_jobs += fetch_europe_github()
     all_jobs += fetch_remotive()
     all_jobs += fetch_greenhouse()
     unique = dedup(all_jobs)
