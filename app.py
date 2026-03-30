@@ -13,6 +13,40 @@ from autofill import autofill, detect_platform
 # --- Config ---
 st.set_page_config(page_title="Auto-Job-Seeker Dashboard", page_icon="🎯", layout="wide")
 
+import subprocess
+import socket
+
+@st.cache_resource
+def ensure_browser_running():
+    """Launch a global Chromium process with CDP enabled if not already running."""
+    port = 9222
+    # Check if anything is listening on port 9222
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        if s.connect_ex(('localhost', port)) == 0:
+            return True # Already running
+
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as pw:
+            exe = pw.chromium.executable_path
+            
+        # Launch Chromium as a background process
+        # We use a dedicated user data dir to avoid conflicts
+        user_data_dir = os.path.abspath("./.browser_data")
+        cmd = [
+            exe,
+            f"--remote-debugging-port={port}",
+            f"--user-data-dir={user_data_dir}",
+            "--no-first-run",
+            "--no-default-browser-check"
+        ]
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(2) # Give it a moment to start
+        return True
+    except Exception as e:
+        st.error(f"Failed to launch background browser: {e}")
+        return False
+
 # --- Custom Style for Premium Look ---
 st.markdown("""
     <style>
@@ -25,14 +59,14 @@ st.markdown("""
     
     /* Tighten Main Container */
     .block-container {
-        padding-top: 1rem !important;
+        padding-top: 2rem !important;
         padding-bottom: 0rem !important;
         max-width: 95% !important;
     }
     
     /* Remove Header Gaps */
     h1, h2, h3 {
-        margin-top: -1rem !important;
+        margin-top: 0.5rem !important;
         margin-bottom: 0.5rem !important;
     }
 
@@ -98,7 +132,6 @@ st.markdown("""
     .stTabs [data-baseweb="tab-list"] {
         gap: 1.5rem;
         background-color: transparent;
-        margin-top: -1.5rem !important;
     }
     
     .stTabs [data-baseweb="tab"] {
@@ -171,6 +204,18 @@ pending = [j for j in jobs if normalize(j["apply_url"]) not in applied]
 with st.sidebar:
     st.title("🎯 Auto-Job-Seeker")
     
+    # --- Navigation (Moved to Top) ---
+    st.markdown("### 📂 Navigation")
+    page = st.radio("Go to:", ["💼 Job Board", "📊 Analytics"], label_visibility="collapsed")
+    
+    # --- Quick Stats ---
+    st.divider()
+    m1, m2 = st.columns(2)
+    m1.metric("Pending", len(pending))
+    m2.metric("Done", len(applied))
+    st.caption(f"Total jobs fetched: {len(jobs)}")
+    st.divider()
+
     if profile.get("basic"):
         b = profile["basic"]
         st.success("✅ Profile Loaded")
@@ -195,14 +240,8 @@ with st.sidebar:
             st.rerun()
 
     st.divider()
-    st.metric("Total Fetched", len(jobs))
-    st.metric("Total Applied/Skipped", len(applied))
-    st.metric("Pending Applications", len(pending))
-
 # --- Main UI ---
-tab1, tab2 = st.tabs(["💼 Job Board", "📊 Analytics"])
-
-with tab1:
+if page == "💼 Job Board":
     st.header("Job Board")
     
     # --- Filters ---
@@ -317,12 +356,17 @@ with tab1:
 
             with col_auto:
                 if st.button("🤖 Auto-Fill", key=f"auto_{uid}", use_container_width=True, type="primary"):
-                    with st.spinner("Filling..."):
+                    with st.spinner("Connecting to browser..."):
                         profile["_current_job_title"] = job["title"]
                         profile["_current_company"] = job["company"]
                         try:
-                            autofill(job["apply_url"], profile, headless=False, streamlit_mode=True)
-                            st.success("Success!")
+                            # 1. Ensure the background browser is alive
+                            if ensure_browser_running():
+                                # 2. Connect via CDP (thread-safe)
+                                autofill(job["apply_url"], profile, cdp_port=9222)
+                                st.success("Tab opened!")
+                            else:
+                                st.error("Could not start browser process.")
                         except Exception as e:
                             st.error(f"Error: {e}")
 
@@ -351,7 +395,7 @@ with tab1:
     else:
         st.info("No pending jobs matches your filters! Click 'Fetch New Jobs' in the sidebar or adjust your filters.")
 
-with tab2:
+else: # 📊 Analytics
     st.header("Analytics")
     if applied:
         applied_list = [r for r in applied.values() if r.get("status") == "applied"]

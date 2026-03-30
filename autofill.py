@@ -324,10 +324,10 @@ def _click_radio_no(page, keyword: str):
 
 # ─── Main entry point ─────────────────────────────────────────────────────────
 
-def autofill(url: str, profile: dict, headless: bool = False, streamlit_mode: bool = False):
+def autofill(url: str, profile: dict, headless: bool = False, streamlit_mode: bool = False, browser=None, cdp_port=None):
     """
     Open the apply URL in a real browser, fill the form, then pause.
-    headless=False so you can see and review everything.
+    If 'cdp_port' 9222 is provided, it connects to an existing global browser (safest for Streamlit).
     """
     try:
         from playwright.sync_api import sync_playwright
@@ -340,44 +340,66 @@ def autofill(url: str, profile: dict, headless: bool = False, streamlit_mode: bo
     company = profile.get("_current_company", "")
 
     print(f"\n  🤖 Opening {platform} form for: {company} — {job_title}")
-    print(f"  📎 Attaching resume: {profile.get('resume_path','resume.pdf')}")
-    print(f"  ⏸  Form will fill then PAUSE. You review + click Submit.\n")
 
+    if cdp_port:
+        # --- CDP Mode (Cross-thread safe) ---
+        with sync_playwright() as pw:
+            # Connect to existing browser process
+            try:
+                browser_cdp = pw.chromium.connect_over_cdp(f"http://localhost:{cdp_port}")
+                ctx = browser_cdp.contexts[0] if browser_cdp.contexts else browser_cdp.new_context(accept_downloads=True)
+                page = ctx.new_page()
+                fill_page(page, url, profile, platform, job_title, company)
+                page.bring_to_front()
+                return True
+            except Exception as e:
+                log.error(f"  CDP connection failed: {e}")
+                # Fallback to normal launch if CDP fails
+                pass
+
+    if browser:
+        # --- Provided Browser Instance Mode ---
+        try:
+            ctx = browser.contexts[0] if browser.contexts else browser.new_context(accept_downloads=True)
+            page = ctx.new_page()
+            fill_page(page, url, profile, platform, job_title, company)
+            page.bring_to_front()
+            return True
+        except Exception:
+            pass # Fallback
+
+    # --- Standalone Mode (New Window) ---
     with sync_playwright() as pw:
-        browser = pw.chromium.launch(headless=headless, slow_mo=200)
-        ctx = browser.new_context(accept_downloads=True)
+        launch_browser = pw.chromium.launch(headless=headless, slow_mo=200)
+        ctx = launch_browser.new_context(accept_downloads=True)
         page = ctx.new_page()
+        fill_page(page, url, profile, platform, job_title, company)
 
-        page.goto(url, wait_until="domcontentloaded", timeout=20000)
-        page.wait_for_timeout(2000)  # let JS render
-
-        if platform == "greenhouse":
-            fill_greenhouse(page, profile, job_title, company)
-        elif platform == "lever":
-            fill_lever(page, profile, job_title, company)
-        else:
-            # Unknown platform — do best-effort generic fill
-            log.warning(f"  Unknown platform for {url} — attempting generic fill")
-            _generic_fill(page, profile)
-
-        page.wait_for_timeout(1000)
-
-        print("\n  ✅ Form filled. Browser is open.")
-        print("  👀 Review everything carefully before submitting.")
-        
         if streamlit_mode:
-            print("  ⏳ Waiting for you to close the browser (Streamlit mode)...")
             try:
                 page.wait_for_event("close", timeout=0)
-            except Exception:
-                pass
+            except Exception: pass
         else:
-            print("  Press ENTER here when you're done (this closes the browser)...")
-            input()
-
-        browser.close()
+            input("  Press ENTER to close...")
+        launch_browser.close()
 
     return True
+
+
+def fill_page(page, url, profile, platform, job_title, company):
+    """The core logic to navigate and fill a form on an existing Playwright page."""
+    page.goto(url, wait_until="domcontentloaded", timeout=25000)
+    page.wait_for_timeout(2000)  # let JS render
+
+    if platform == "greenhouse":
+        fill_greenhouse(page, profile, job_title, company)
+    elif platform == "lever":
+        fill_lever(page, profile, job_title, company)
+    else:
+        log.warning(f"  Unknown platform for {url} — attempting generic fill")
+        _generic_fill(page, profile)
+
+    page.wait_for_timeout(1000)
 
 
 def _generic_fill(page, profile: dict):
