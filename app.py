@@ -432,9 +432,9 @@ else: # 📊 Analytics
                 cat_counts.columns = ["Category", "Count"]
                 st.bar_chart(cat_counts.set_index("Category"))
                 
-            st.subheader("Recent Applications")
-            recent_df = df_applied.sort_values("applied_at", ascending=False).head(10)
-            st.dataframe(recent_df[["applied_at", "company", "title", "source"]], use_container_width=True, hide_index=True)
+            st.subheader(f"All Applications ({len(df_applied)} total)")
+            recent_df = df_applied.sort_values("applied_at", ascending=False)
+            st.dataframe(recent_df[["applied_at", "company", "title", "source", "category"]], use_container_width=True, hide_index=True)
             
         st.divider()
         st.subheader("Manage History")
