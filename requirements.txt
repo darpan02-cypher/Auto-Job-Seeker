@@ -3,3 +3,6 @@ pandas
 beautifulsoup4
 playwright
 requests
+gspread
+google-auth
+openpyxl

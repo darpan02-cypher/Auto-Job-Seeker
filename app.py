@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import time
 import os
 import re
+import io
 
 from fetch_jobs import fetch_all
 from autofill import autofill, detect_platform
@@ -201,6 +202,75 @@ def make_record(job, status="applied"):
         "status": status,
         "applied_at": datetime.now().isoformat()
     }
+
+# --- Export Helpers ---
+SHEET_ID = "13h5N0vjW1wQpC6j_4i28-pvMFnULEWA8FjcwD7ToQJg"
+CREDS_FILE = "credentials.json"
+
+def build_applied_df(applied_dict):
+    """Returns a DataFrame of only 'applied' (not skipped) records."""
+    rows = [r for r in applied_dict.values() if r.get("status") == "applied"]
+    if not rows:
+        return pd.DataFrame()
+    df = pd.DataFrame(rows)[["applied_at", "company", "title", "source", "category", "apply_url"]]
+    df.columns = ["Applied At", "Company", "Title", "Source", "Category", "URL"]
+    # Clean up applied_at to a readable format
+    df["Applied At"] = pd.to_datetime(df["Applied At"]).dt.strftime("%Y-%m-%d %H:%M")
+    return df
+
+def export_to_excel(applied_dict):
+    """Returns an in-memory Excel (.xlsx) bytes object."""
+    df = build_applied_df(applied_dict)
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Applied Jobs")
+        ws = writer.sheets["Applied Jobs"]
+        # Auto-size columns
+        col_widths = {"A": 18, "B": 28, "C": 40, "D": 18, "E": 14, "F": 55}
+        for col, width in col_widths.items():
+            ws.column_dimensions[col].width = width
+    buffer.seek(0)
+    return buffer.getvalue()
+
+def sync_to_google_sheet(applied_dict):
+    """Syncs applied jobs to the configured Google Sheet. Returns (success, message)."""
+    if not Path(CREDS_FILE).exists():
+        return False, f"❌ `{CREDS_FILE}` not found in project folder. Please add your service account key file."
+    try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
+        ]
+        creds = Credentials.from_service_account_file(CREDS_FILE, scopes=scopes)
+        gc = gspread.authorize(creds)
+        sh = gc.open_by_key(SHEET_ID)
+
+        # Find the right worksheet by GID
+        target_gid = 941207653
+        ws = None
+        for sheet in sh.worksheets():
+            if sheet.id == target_gid:
+                ws = sheet
+                break
+        if ws is None:
+            # Fallback: use first sheet
+            ws = sh.sheet1
+
+        df = build_applied_df(applied_dict)
+        if df.empty:
+            return False, "No applied jobs to sync."
+
+        # Full overwrite: clear then write headers + rows
+        ws.clear()
+        headers = df.columns.tolist()
+        rows = df.values.tolist()
+        ws.update([headers] + rows)
+
+        return True, f"✅ Synced {len(rows)} applied jobs to Google Sheet!"
+    except Exception as e:
+        return False, f"❌ Sync failed: {e}"
 
 # --- Load Data ---
 profile = load_json(PROFILE_FILE)
@@ -414,6 +484,42 @@ else: # 📊 Analytics
     st.header("Analytics")
     if applied:
         applied_list = [r for r in applied.values() if r.get("status") == "applied"]
+
+        # --- Export Buttons ---
+        exp_col1, exp_col2, exp_col3 = st.columns([1.5, 1.8, 5])
+        with exp_col1:
+            if applied_list:
+                excel_bytes = export_to_excel(applied)
+                st.download_button(
+                    label="📥 Download Excel",
+                    data=excel_bytes,
+                    file_name=f"applied_jobs_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                )
+            else:
+                st.button("📥 Download Excel", disabled=True, use_container_width=True)
+
+        with exp_col2:
+            if st.button("☁️ Sync to Google Sheet", use_container_width=True):
+                with st.spinner("Syncing to Google Sheets..."):
+                    success, msg = sync_to_google_sheet(applied)
+                if success:
+                    st.toast(msg, icon="✅")
+                else:
+                    st.error(msg)
+                    if "credentials.json" in msg:
+                        st.info(
+                            "**How to add credentials:**\n"
+                            "1. Go to [Google Cloud Console](https://console.cloud.google.com/) → IAM & Admin → Service Accounts\n"
+                            "2. Create/select a service account → Keys → Add Key → JSON\n"
+                            "3. Download the file and rename it to `credentials.json`\n"
+                            "4. Place it inside your `Auto-Job-Seeker/` project folder\n"
+                            "5. Share your Google Sheet with the service account email"
+                        )
+
+        st.divider()
+
         if not applied_list:
             st.info("You haven't applied to any jobs yet.")
         else:
