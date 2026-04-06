@@ -14,6 +14,9 @@ from autofill import autofill, detect_platform
 # --- Config ---
 st.set_page_config(page_title="Auto-Job-Seeker Dashboard", page_icon="🎯", layout="wide")
 
+# Detect if running on Streamlit Cloud
+IS_CLOUD = os.environ.get("STREAMLIT_RUNTIME_ENV") is not None or os.environ.get("HOSTNAME") == "streamlit"
+
 # --- Auto-Install Playwright for Streamlit Cloud ---
 if "playwright_installed" not in st.session_state:
     try:
@@ -25,7 +28,8 @@ if "playwright_installed" not in st.session_state:
     except Exception:
         # Install chromium binaries only if they are missing
         st.info("🔧 First-time setup: Installing browser binaries...")
-        os.system("playwright install chromium")
+        # Use python -m playwright to ensure it uses the correct environment's executable
+        os.system("python3 -m playwright install chromium")
         st.session_state["playwright_installed"] = True
         st.rerun()
 
@@ -463,20 +467,23 @@ if page == "💼 Job Board":
                 st.caption(f"📍 {job['location']} | {job['source']} | `{platform.upper()}`")
 
             with col_auto:
-                if st.button("🤖 Auto-Fill", key=f"auto_{uid}", use_container_width=True, type="primary"):
-                    with st.spinner("Connecting to browser..."):
-                        profile["_current_job_title"] = job["title"]
-                        profile["_current_company"] = job["company"]
-                        try:
-                            # 1. Ensure the background browser is alive
-                            if ensure_browser_running():
-                                # 2. Connect via CDP (thread-safe)
-                                autofill(job["apply_url"], profile, cdp_port=9222)
-                                st.success("Tab opened!")
-                            else:
-                                st.error("Could not start browser process.")
-                        except Exception as e:
-                            st.error(f"Error: {e}")
+                if IS_CLOUD:
+                    st.button("🤖 Auto-Fill", key=f"auto_{uid}", use_container_width=True, type="primary", disabled=True, help="Auto-Fill only works when running the app locally on your machine.")
+                else:
+                    if st.button("🤖 Auto-Fill", key=f"auto_{uid}", use_container_width=True, type="primary"):
+                        with st.spinner("Connecting to browser..."):
+                            profile["_current_job_title"] = job["title"]
+                            profile["_current_company"] = job["company"]
+                            try:
+                                # 1. Ensure the background browser is alive
+                                if ensure_browser_running():
+                                    # 2. Connect via CDP (thread-safe)
+                                    autofill(job["apply_url"], profile, cdp_port=9222)
+                                    st.success("Tab opened!")
+                                else:
+                                    st.error("Could not start browser process.")
+                            except Exception as e:
+                                st.error(f"Error: {e}")
 
             with col_done:
                 if st.button("✅ Done", key=f"done_{uid}", use_container_width=True):
