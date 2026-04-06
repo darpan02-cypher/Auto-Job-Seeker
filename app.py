@@ -23,15 +23,24 @@ if "playwright_installed" not in st.session_state:
         # Check if playwright is working. If not, install.
         from playwright.sync_api import sync_playwright
         with sync_playwright() as pw:
+            # Simple check if executable is available.
             pw.chromium.executable_path
         st.session_state["playwright_installed"] = True
     except Exception:
-        # Install chromium binaries only if they are missing
-        st.info("🔧 First-time setup: Installing browser binaries...")
-        # Use python -m playwright to ensure it uses the correct environment's executable
-        os.system("python3 -m playwright install chromium")
-        st.session_state["playwright_installed"] = True
-        st.rerun()
+        if IS_CLOUD:
+            # Install chromium binaries only if they are missing
+            try:
+                st.info("🔧 First-time setup: Installing browser binaries...")
+                os.system("python3 -m playwright install chromium")
+                st.session_state["playwright_installed"] = True
+                st.rerun()
+            except Exception as e:
+                st.error(f"⚠️ Could not install browser binaries: {e}")
+                st.session_state["playwright_installed"] = True
+        else:
+            # For local users, just show a warning instead of a crash.
+            st.warning("⚠️ Playwright not detected. Run `playwright install chromium` in your terminal.")
+            st.session_state["playwright_installed"] = True
 
 import subprocess
 import socket
@@ -468,8 +477,10 @@ if page == "💼 Job Board":
 
             with col_auto:
                 if IS_CLOUD:
-                    st.button("🤖 Auto-Fill", key=f"auto_{uid}", use_container_width=True, type="primary", disabled=True, help="Auto-Fill only works when running the app locally on your machine.")
+                    # Cloud Mode: Simple link to application
+                    st.link_button("🤖 Go to Job", job["apply_url"], use_container_width=True, type="primary", help="On the live website, we open the form for you. Run the app locally for automated field filling.")
                 else:
+                    # Local Mode: Full Automation
                     if st.button("🤖 Auto-Fill", key=f"auto_{uid}", use_container_width=True, type="primary"):
                         with st.spinner("Connecting to browser..."):
                             profile["_current_job_title"] = job["title"]
