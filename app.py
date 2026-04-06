@@ -233,17 +233,41 @@ def export_to_excel(applied_dict):
     return buffer.getvalue()
 
 def sync_to_google_sheet(applied_dict):
-    """Syncs applied jobs to the configured Google Sheet. Returns (success, message)."""
-    if not Path(CREDS_FILE).exists():
-        return False, f"❌ `{CREDS_FILE}` not found in project folder. Please add your service account key file."
+    """Syncs applied jobs to the configured Google Sheet. Returns (success, message).
+    Credentials are loaded from:
+      1. st.secrets['gcp_service_account']  (Streamlit Cloud)
+      2. credentials.json file              (local development)
+    """
     try:
         import gspread
         from google.oauth2.service_account import Credentials
+
         scopes = [
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive",
         ]
-        creds = Credentials.from_service_account_file(CREDS_FILE, scopes=scopes)
+
+        # --- Load credentials: st.secrets first, then local file ---
+        creds_info = None
+        try:
+            # Streamlit Cloud: store JSON fields under [gcp_service_account] in secrets.toml
+            if "gcp_service_account" in st.secrets:
+                creds_info = dict(st.secrets["gcp_service_account"])
+        except (KeyError, FileNotFoundError):
+            pass  # Not on Streamlit Cloud or secrets not set
+
+        if creds_info:
+            creds = Credentials.from_service_account_info(creds_info, scopes=scopes)
+        elif Path(CREDS_FILE).exists():
+            creds = Credentials.from_service_account_file(CREDS_FILE, scopes=scopes)
+        else:
+            return False, (
+                "❌ No credentials found.\n\n"
+                "**Local:** place `credentials.json` in the project folder.\n\n"
+                "**Streamlit Cloud:** add your service account JSON to `st.secrets` "
+                "under `[gcp_service_account]` in the dashboard."
+            )
+
         gc = gspread.authorize(creds)
         sh = gc.open_by_key(SHEET_ID)
 
@@ -255,8 +279,7 @@ def sync_to_google_sheet(applied_dict):
                 ws = sheet
                 break
         if ws is None:
-            # Fallback: use first sheet
-            ws = sh.sheet1
+            ws = sh.sheet1  # Fallback: use first sheet
 
         df = build_applied_df(applied_dict)
         if df.empty:
