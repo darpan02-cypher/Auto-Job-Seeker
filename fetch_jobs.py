@@ -24,6 +24,33 @@ log = logging.getLogger(__name__)
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; personal-job-tracker/1.0)"}
 
+INCLUDE_KEYWORDS = [
+    "software", "data", "ai", "artificial intelligence", "ml", "machine learning",
+    "devops", "computer science", "information technology", "frontend", "backend",
+    "fullstack", "web", "cloud", "security", "cyber", "mobile", "ios", "android",
+]
+
+EXCLUDE_KEYWORDS = [
+    "mechanical", "electrical", "hardware", "firmware", "civil", "structural",
+    "chemical", "manufacturing", "supply chain", "circuit", "analog", "digital design",
+    "aerospace", "automotive", "construction", "embedded", "robotics engineer",
+]
+
+def is_relevant_job(title: str) -> bool:
+    """Checks if the job title matches CS/DS/AI criteria and is NOT in excluded list."""
+    tl = title.lower()
+    
+    # 1. Check for explicit exclusions
+    if any(kw in tl for kw in EXCLUDE_KEYWORDS):
+        return False
+        
+    # 2. Check for explicit inclusions
+    if any(kw in tl for kw in INCLUDE_KEYWORDS):
+        return True
+        
+    # 3. Default to False for high precision if it doesn't match either
+    return False
+
 
 @dataclass
 class Job:
@@ -118,6 +145,9 @@ def fetch_github_repo_jobs(url: str, source_name: str, default_category: str = "
 
                     if not role or not apply_url or apply_url.startswith("#") or not company:
                         continue
+                    
+                    if not is_relevant_job(role):
+                        continue
 
                     jobs.append(Job(
                         title=role, company=company, location=location,
@@ -142,7 +172,10 @@ def fetch_europe_github() -> list[Job]:
 
 
 def fetch_remotive(roles=None) -> list[Job]:
-    roles = roles or ["software engineer intern", "data science intern", "ml intern"]
+    roles = roles or [
+        "software engineer intern", "data science intern", "ml intern", 
+        "ai intern", "devops intern", "data analyst intern"
+    ]
     jobs = []
     for role in roles:
         try:
@@ -151,8 +184,12 @@ def fetch_remotive(roles=None) -> list[Job]:
                                 headers=HEADERS, timeout=10)
             resp.raise_for_status()
             for item in resp.json().get("jobs", []):
+                title = item.get("title", "")
+                if not is_relevant_job(title):
+                    continue
+
                 jobs.append(Job(
-                    title=item.get("title", ""),
+                    title=title,
                     company=item.get("company_name", ""),
                     location=item.get("candidate_required_location", "Remote"),
                     apply_url=item.get("url", ""),
@@ -176,7 +213,7 @@ GREENHOUSE_COMPANIES = [
 ]
 
 def fetch_greenhouse(role_keywords=None) -> list[Job]:
-    keywords = [k.lower() for k in (role_keywords or ["intern", "data", "engineer"])]
+    keywords = [k.lower() for k in (role_keywords or ["intern", "data", "engineer", "software", "ai", "ml", "devops"])]
     jobs = []
     for company in GREENHOUSE_COMPANIES:
         try:
@@ -186,7 +223,7 @@ def fetch_greenhouse(role_keywords=None) -> list[Job]:
                 continue
             for item in resp.json().get("jobs", []):
                 title = item.get("title", "")
-                if not any(kw in title.lower() for kw in keywords):
+                if not is_relevant_job(title):
                     continue
                 jobs.append(Job(
                     title=title,
@@ -279,6 +316,9 @@ def fetch_remote_rocketship(pages: int = 3) -> list[Job]:
                         break
 
                 if not apply_url or not company or not title:
+                    continue
+
+                if not is_relevant_job(title):
                     continue
 
                 tl = title.lower()
