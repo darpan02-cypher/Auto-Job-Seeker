@@ -4,6 +4,7 @@ Pulls SWE + Data Science internship listings from:
   1. zapplyjobs/Internships-2026 GitHub README (markdown table parsing)
   2. Remotive public API
   3. Greenhouse public boards
+  4. Remote Rocketship (remoterocketship.com)
 
 Deduplicates across all sources by apply link.
 Outputs: jobs.json
@@ -204,6 +205,111 @@ def fetch_greenhouse(role_keywords=None) -> list[Job]:
     return jobs
 
 
+def fetch_remote_rocketship(pages: int = 3) -> list[Job]:
+    """Scrapes Remote Rocketship for Software Intern listings, sorted by newest."""
+    jobs = []
+    base_url = "https://www.remoterocketship.com/"
+    params_template = {
+        "ref": "briansjobsearch",
+        "jobTitle": "Software Intern",
+        "sort": "DateAdded",
+    }
+
+    for page in range(1, pages + 1):
+        params = {**params_template, "page": page}
+        try:
+            resp = requests.get(base_url, params=params, headers=HEADERS, timeout=15)
+            resp.raise_for_status()
+            soup = BeautifulSoup(resp.text, "html.parser")
+
+            # Job cards are div.p-6 — each h3 sits 4 levels deep inside one
+            job_headings = soup.find_all("h3")
+            if not job_headings:
+                log.info(f"RemoteRocketship: no jobs on page {page}, stopping.")
+                break
+
+            page_jobs_before = len(jobs)
+            for h3 in job_headings:
+                a_title = h3.find("a", href=lambda h: h and "/jobs/" in h)
+                if not a_title:
+                    continue
+                title = a_title.get_text(strip=True)
+
+                # Climb 5 levels up from h3 to reach the div.relative card wrapper
+                # (div.p-6 is at 4, but Apply button is a sibling — need level 5)
+                card = h3
+                for _ in range(5):
+                    if card.parent:
+                        card = card.parent
+
+                # Company: h4 > a with /company/ in href
+                company = ""
+                h4 = card.find("h4")
+                if h4:
+                    a_co = h4.find("a", href=lambda h: h and "/company/" in h)
+                    if a_co:
+                        company = a_co.get_text(strip=True)
+
+                # Location: first link to a region page (contains flag emoji + "Remote")
+                location = "Remote"
+                for a in card.find_all("a", href=True):
+                    href = a["href"]
+                    txt = a.get_text(strip=True)
+                    if ("remoterocketship.com" in href and
+                            any(seg in href for seg in ["/us/", "/gb/", "/ca/", "/country/", "/state/", "/city/"]) and
+                            len(txt) > 3):
+                        location = txt.split("\n")[0].strip()
+                        break
+
+                # Age: clock emoji sibling text
+                age = ""
+                for text_node in card.find_all(string=re.compile(
+                        r"\d+\s*(days?|hours?)\s*ago|yesterday|March|April|May|June", re.I)):
+                    age = text_node.strip()
+                    break
+
+                # Direct Apply URL: external link with text "Apply"
+                apply_url = ""
+                for a in card.find_all("a", href=True):
+                    href = a["href"]
+                    if (href.startswith("http")
+                            and "remoterocketship.com" not in href
+                            and a.get_text(strip=True).lower() == "apply"):
+                        apply_url = href
+                        break
+
+                if not apply_url or not company or not title:
+                    continue
+
+                tl = title.lower()
+                category = "Data Science" if any(
+                    k in tl for k in ["data", "ml", "machine learning", "analytics"]) else "SWE"
+
+                jobs.append(Job(
+                    title=title,
+                    company=company,
+                    location=location,
+                    apply_url=apply_url,
+                    source="RemoteRocketship",
+                    category=category,
+                    age=age,
+                    fetched_at=datetime.now().isoformat(),
+                ))
+
+            new_on_page = len(jobs) - page_jobs_before
+            log.info(f"RemoteRocketship: page {page} → {new_on_page} new jobs (total {len(jobs)})")
+            if new_on_page == 0:
+                break  # No more results
+            time.sleep(1.5)
+
+        except Exception as e:
+            log.error(f"RemoteRocketship page {page} failed: {e}")
+            break
+
+    log.info(f"RemoteRocketship: {len(jobs)} total jobs fetched")
+    return jobs
+
+
 def dedup(jobs: list[Job]) -> list[Job]:
     seen = {}
     for job in jobs:
@@ -231,6 +337,7 @@ def fetch_all(out_path="jobs.json") -> list[Job]:
     all_jobs += fetch_europe_github()
     all_jobs += fetch_remotive()
     all_jobs += fetch_greenhouse()
+    all_jobs += fetch_remote_rocketship(pages=3)
     unique = dedup(all_jobs)
     save(unique, out_path)
     return unique
