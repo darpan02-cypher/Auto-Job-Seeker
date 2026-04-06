@@ -1,1 +1,11 @@
 .browser_data/
+
+# Google service account key — NEVER commit this
+credentials.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
