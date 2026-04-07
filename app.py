@@ -227,6 +227,34 @@ def export_to_excel(applied_dict):
     buffer.seek(0)
     return buffer.getvalue()
 
+def clean_private_key(key: str) -> str:
+    """Robustly cleans a private_key string from st.secrets or credentials.json."""
+    if not key or not isinstance(key, str):
+        return key
+
+    # 1. Strip whitespace and accidental outer quotes
+    key = key.strip().strip("'").strip('"')
+
+    # 2. Fix double-escaped newlines (escaped \n vs actual newline)
+    key = key.replace("\\n", "\n")
+
+    # 3. Ensure header/footer are correctly placed and exactly what CRYPTOGRAPHY expects
+    header = "-----BEGIN PRIVATE KEY-----"
+    footer = "-----END PRIVATE KEY-----"
+    
+    # Remove fragments if any (to rebuild it correctly)
+    body = key.replace(header, "").replace(footer, "").strip()
+    
+    # Remove any whitespaces/newlines within the base64 body (Base64 can handle it but PEM prefers standard lines)
+    # Actually, cryptography is picky. Let's rebuild the PEM exactly.
+    body_lines = body.splitlines()
+    clean_body = "".join(line.strip() for line in body_lines if line.strip())
+    
+    # Wrap base64 body into 64-char lines
+    standard_body = "\n".join(clean_body[i:i+64] for i in range(0, len(clean_body), 64))
+    
+    return f"{header}\n{standard_body}\n{footer}\n"
+
 def sync_to_google_sheet(applied_dict):
     """Syncs applied jobs to the configured Google Sheet. Returns (success, message)."""
     try:
@@ -248,11 +276,37 @@ def sync_to_google_sheet(applied_dict):
         if not creds_info:
             return False, "❌ No credentials found."
 
-        # --- FIX FOR PEM ERROR ---
+        # --- ADVANCED FIX FOR PEM ERROR ---
         if "private_key" in creds_info:
-            creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n")
+            original_pk = creds_info["private_key"]
+            cleaned_pk = clean_private_key(original_pk)
+            creds_info["private_key"] = cleaned_pk
+            
+            # Diagnostic for the user if it still feels wrong
+            if len(cleaned_pk) < 1500:
+                print(f"DEBUG: Key length {len(cleaned_pk)} - might be truncated!")
 
-        creds = Credentials.from_service_account_info(creds_info, scopes=scopes)
+        try:
+            creds = Credentials.from_service_account_info(creds_info, scopes=scopes)
+        except ValueError as ve:
+            if "PEM" in str(ve):
+                # Detailed hint for the user
+                last_few = original_pk[-20:] if original_pk else "empty"
+                return False, (
+                    f"❌ Sync failed: **Could not load Private Key.**\n\n"
+                    f"**Detected formatting issue.** Your key ends with: `{last_few}`.\n\n"
+                    "**Fix needed:**\n"
+                    "1. Go to your Streamlit App Dashboard → Settings → Secrets.\n"
+                    "2. Ensure the `private_key` is wrapped in **triple quotes** in TOML format like this:\n"
+                    "```toml\n"
+                    "private_key = '''-----BEGIN PRIVATE KEY-----\n"
+                    "MIIE...YourFullKeyHere...==\n"
+                    "-----END PRIVATE KEY-----'''\n"
+                    "```\n"
+                    "3. Make sure you haven't accidentally cut off the end of the key!"
+                )
+            raise ve
+
         gc = gspread.authorize(creds)
         sh = gc.open_by_key(SHEET_ID)
 
@@ -286,7 +340,7 @@ def fetch_applied_from_gsheet():
         if not creds_info: return {}
         
         if "private_key" in creds_info:
-            creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n")
+            creds_info["private_key"] = clean_private_key(creds_info["private_key"])
             
         creds = Credentials.from_service_account_info(creds_info, scopes=scopes)
         gc = gspread.authorize(creds)
