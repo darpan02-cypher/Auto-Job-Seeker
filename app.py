@@ -212,7 +212,10 @@ def build_applied_df(applied_dict):
         return pd.DataFrame()
     df = pd.DataFrame(rows)[["applied_at", "company", "title", "source", "category", "apply_url"]]
     df.columns = ["Applied At", "Company", "Title", "Source", "Category", "URL"]
-    df["Applied At"] = pd.to_datetime(df["Applied At"]).dt.strftime("%Y-%m-%d %H:%M")
+    
+    # Robust date conversion using errors='coerce'
+    dt_col = pd.to_datetime(df["Applied At"], errors='coerce')
+    df["Applied At"] = dt_col.dt.strftime("%Y-%m-%d %H:%M").fillna("N/A")
     return df
 
 def export_to_excel(applied_dict):
