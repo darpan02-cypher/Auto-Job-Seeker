@@ -228,32 +228,37 @@ def export_to_excel(applied_dict):
     return buffer.getvalue()
 
 def clean_private_key(key: str) -> str:
-    """Robustly cleans a private_key string from st.secrets or credentials.json."""
+    """Ultra-aggressive cleaning of a private_key string."""
     if not key or not isinstance(key, str):
         return key
 
-    # 1. Strip whitespace and accidental outer quotes
+    # 1. Clean the string of wrapping characters and literal escapes
     key = key.strip().strip("'").strip('"')
-
-    # 2. Fix double-escaped newlines (escaped \n vs actual newline)
     key = key.replace("\\n", "\n")
 
-    # 3. Ensure header/footer are correctly placed and exactly what CRYPTOGRAPHY expects
+    # 2. Extract only the base64 characters between headers
     header = "-----BEGIN PRIVATE KEY-----"
     footer = "-----END PRIVATE KEY-----"
     
-    # Remove fragments if any (to rebuild it correctly)
-    body = key.replace(header, "").replace(footer, "").strip()
+    # Try to find the actual content even if headers are mangled
+    if header in key:
+        content = key.split(header)[1]
+    else:
+        content = key
+
+    if footer in content:
+        content = content.split(footer)[0]
     
-    # Remove any whitespaces/newlines within the base64 body (Base64 can handle it but PEM prefers standard lines)
-    # Actually, cryptography is picky. Let's rebuild the PEM exactly.
-    body_lines = body.splitlines()
-    clean_body = "".join(line.strip() for line in body_lines if line.strip())
+    # 3. Aggressively remove EVERY character that is not valid Base64 or padding
+    # This solves the "InvalidByte" error caused by invisible chars/spaces
+    clean_body = re.sub(r'[^A-Za-z0-9+/=]', '', content)
     
-    # Wrap base64 body into 64-char lines
-    standard_body = "\n".join(clean_body[i:i+64] for i in range(0, len(clean_body), 64))
+    # 4. Rebuild in the exact format Cryptography expects
+    # (64 characters per line, with a single trailing newline after each)
+    lines = [clean_body[i:i+64] for i in range(0, len(clean_body), 64)]
+    rebuilt = f"{header}\n" + "\n".join(lines) + f"\n{footer}\n"
     
-    return f"{header}\n{standard_body}\n{footer}\n"
+    return rebuilt
 
 def sync_to_google_sheet(applied_dict):
     """Syncs applied jobs to the configured Google Sheet. Returns (success, message)."""
@@ -276,34 +281,30 @@ def sync_to_google_sheet(applied_dict):
         if not creds_info:
             return False, "❌ No credentials found."
 
-        # --- ADVANCED FIX FOR PEM ERROR ---
         if "private_key" in creds_info:
             original_pk = creds_info["private_key"]
             cleaned_pk = clean_private_key(original_pk)
             creds_info["private_key"] = cleaned_pk
-            
-            # Diagnostic for the user if it still feels wrong
-            if len(cleaned_pk) < 1500:
-                print(f"DEBUG: Key length {len(cleaned_pk)} - might be truncated!")
 
         try:
             creds = Credentials.from_service_account_info(creds_info, scopes=scopes)
-        except ValueError as ve:
-            if "PEM" in str(ve):
-                # Detailed hint for the user
-                last_few = original_pk[-20:] if original_pk else "empty"
+        except Exception as ve:
+            if "PEM" in str(ve) or "key" in str(ve).lower():
+                last_few = original_pk[-30:] if original_pk else "None"
                 return False, (
-                    f"❌ Sync failed: **Could not load Private Key.**\n\n"
-                    f"**Detected formatting issue.** Your key ends with: `{last_few}`.\n\n"
-                    "**Fix needed:**\n"
-                    "1. Go to your Streamlit App Dashboard → Settings → Secrets.\n"
-                    "2. Ensure the `private_key` is wrapped in **triple quotes** in TOML format like this:\n"
+                    f"❌ Sync failed: **Private Key Error.**\n\n"
+                    f"Error: `{ve}`\n\n"
+                    f"Your key ends with: `{last_few}`.\n\n"
+                    "**How to Fix:**\n"
+                    "1. Go to Streamlit Dashabord Settings → Secrets.\n"
+                    "2. Delete the current `private_key` value.\n"
+                    "3. Open your `credentials.json` file in Notepad/TextEdit.\n"
+                    "4. Copy the `private_key` carefully and wrap it in triple quotes like this:\n"
                     "```toml\n"
                     "private_key = '''-----BEGIN PRIVATE KEY-----\n"
-                    "MIIE...YourFullKeyHere...==\n"
+                    "MIIE...YourKeyHere...==\n"
                     "-----END PRIVATE KEY-----'''\n"
-                    "```\n"
-                    "3. Make sure you haven't accidentally cut off the end of the key!"
+                    "```"
                 )
             raise ve
 
