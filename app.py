@@ -232,30 +232,30 @@ def clean_private_key(key: str) -> str:
     if not key or not isinstance(key, str):
         return key
 
-    # Normalize literal \n first
-    key = key.replace("\\n", "\n")
+    # 1. Normalize escapes and outer wrapping
+    key = key.replace("\\n", "\n").strip().strip("'").strip('"')
     
     header = "-----BEGIN PRIVATE KEY-----"
     footer = "-----END PRIVATE KEY-----"
     
-    # Strip everything that isn't valid Base64 characters
-    # If the key has multiple headers or footers, split carefully
+    # Extract content between markers
     content = key
     if header in key:
-        parts = key.split(header)
-        content = parts[-1] # Take the part after the last header
-        
+        content = key.split(header)[1]
     if footer in content:
         content = content.split(footer)[0]
     
-    # regex sub: keep only base64 characters A-Z, a-z, 0-9, +, /, =
+    # 2. Strict character filtering
     clean_body = re.sub(r'[^A-Za-z0-9+/=]', '', content)
     
-    # Ensure standard wrapping of exactly 64 characters
-    # This is critical for some cryptography parsers
-    wrapped_lines = [clean_body[i:i+64] for i in range(0, len(clean_body), 64)]
+    # 3. Auto-Padding fix (ensure length is multiple of 4)
+    # If the key is cut off, we try to pad it enough for the parser to try
+    missing = len(clean_body) % 4
+    if missing > 0:
+        clean_body += "=" * (4 - missing)
     
-    rebuilt = f"{header}\n" + "\n".join(wrapped_lines) + f"\n{footer}\n"
+    # 4. Single-line PEM (no wrapping in middle). Most libraries prefer this.
+    rebuilt = f"{header}\n{clean_body}\n{footer}\n"
     return rebuilt
 
 def get_creds_info():
@@ -307,7 +307,7 @@ def sync_to_google_sheet(applied_dict):
 
         return True, f"✅ Synced {len(df)} applied jobs to Google Sheet!"
     except Exception as e:
-        return False, f"❌ Sync failed: {e}"
+        return False, f"❌ Sync failed: {e}. If persistence failed, verify YOUR Spreadsheet ID."
 
 def fetch_applied_from_gsheet():
     """On startup, load previously applied jobs from GSheet."""
@@ -498,7 +498,7 @@ else: # 📊 Analytics
                 st.download_button(label="📥 Download Excel", data=excel_bytes, file_name=f"applied_jobs.xlsx", use_container_width=True)
 
         with exp_col2:
-            if st.button("☁️ Sync to Google Sheet", use_container_width=True):
+            if st.button("☁️ Sync to Google Sheet", key="sync_btn", use_container_width=True):
                 with st.spinner("Syncing..."):
                     success, msg = sync_to_google_sheet(applied)
                 if success: st.toast(msg, icon="✅")
