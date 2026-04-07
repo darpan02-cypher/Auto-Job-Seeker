@@ -228,85 +228,70 @@ def export_to_excel(applied_dict):
     return buffer.getvalue()
 
 def clean_private_key(key: str) -> str:
-    """Ultra-aggressive cleaning of a private_key string."""
+    """The most radical cleaning approach for the private_key to solve Offset 1624."""
     if not key or not isinstance(key, str):
         return key
 
-    # 1. Clean the string of wrapping characters and literal escapes
-    key = key.strip().strip("'").strip('"')
+    # Normalize literal \n first
     key = key.replace("\\n", "\n")
-
-    # 2. Extract only the base64 characters between headers
+    
     header = "-----BEGIN PRIVATE KEY-----"
     footer = "-----END PRIVATE KEY-----"
     
-    # Try to find the actual content even if headers are mangled
+    # Strip everything that isn't valid Base64 characters
+    # If the key has multiple headers or footers, split carefully
+    content = key
     if header in key:
-        content = key.split(header)[1]
-    else:
-        content = key
-
+        parts = key.split(header)
+        content = parts[-1] # Take the part after the last header
+        
     if footer in content:
         content = content.split(footer)[0]
     
-    # 3. Aggressively remove EVERY character that is not valid Base64 or padding
-    # This solves the "InvalidByte" error caused by invisible chars/spaces
+    # regex sub: keep only base64 characters A-Z, a-z, 0-9, +, /, =
     clean_body = re.sub(r'[^A-Za-z0-9+/=]', '', content)
     
-    # 4. Rebuild in the exact format Cryptography expects
-    # (64 characters per line, with a single trailing newline after each)
-    lines = [clean_body[i:i+64] for i in range(0, len(clean_body), 64)]
-    rebuilt = f"{header}\n" + "\n".join(lines) + f"\n{footer}\n"
+    # Ensure standard wrapping of exactly 64 characters
+    # This is critical for some cryptography parsers
+    wrapped_lines = [clean_body[i:i+64] for i in range(0, len(clean_body), 64)]
     
+    rebuilt = f"{header}\n" + "\n".join(wrapped_lines) + f"\n{footer}\n"
     return rebuilt
 
+def get_creds_info():
+    """Helper to load credentials from either secrets or local file."""
+    try:
+        if IS_CLOUD and "gcp_service_account" in st.secrets:
+            # Use to_dict() for Streamlit Secrets
+            return dict(st.secrets.to_dict()["gcp_service_account"])
+        elif Path(CREDS_FILE).exists():
+            with open(CREDS_FILE) as f:
+                return json.load(f)
+    except Exception as e:
+        st.error(f"Error loading credentials structure: {e}")
+    return None
+
 def sync_to_google_sheet(applied_dict):
-    """Syncs applied jobs to the configured Google Sheet. Returns (success, message)."""
+    """Syncs applied jobs to the configured Google Sheet."""
     try:
         import gspread
         from google.oauth2.service_account import Credentials
 
-        scopes = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive",
-        ]
-
-        creds_info = None
-        if "gcp_service_account" in st.secrets:
-            creds_info = dict(st.secrets["gcp_service_account"])
-        elif Path(CREDS_FILE).exists():
-            with open(CREDS_FILE) as f:
-                creds_info = json.load(f)
+        scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        creds_info = get_creds_info()
 
         if not creds_info:
             return False, "❌ No credentials found."
 
-        if "private_key" in creds_info:
-            original_pk = creds_info["private_key"]
-            cleaned_pk = clean_private_key(original_pk)
-            creds_info["private_key"] = cleaned_pk
+        original_pk = creds_info.get("private_key", "")
+        if original_pk:
+            creds_info["private_key"] = clean_private_key(original_pk)
 
         try:
             creds = Credentials.from_service_account_info(creds_info, scopes=scopes)
-        except Exception as ve:
-            if "PEM" in str(ve) or "key" in str(ve).lower():
-                last_few = original_pk[-30:] if original_pk else "None"
-                return False, (
-                    f"❌ Sync failed: **Private Key Error.**\n\n"
-                    f"Error: `{ve}`\n\n"
-                    f"Your key ends with: `{last_few}`.\n\n"
-                    "**How to Fix:**\n"
-                    "1. Go to Streamlit Dashabord Settings → Secrets.\n"
-                    "2. Delete the current `private_key` value.\n"
-                    "3. Open your `credentials.json` file in Notepad/TextEdit.\n"
-                    "4. Copy the `private_key` carefully and wrap it in triple quotes like this:\n"
-                    "```toml\n"
-                    "private_key = '''-----BEGIN PRIVATE KEY-----\n"
-                    "MIIE...YourKeyHere...==\n"
-                    "-----END PRIVATE KEY-----'''\n"
-                    "```"
-                )
-            raise ve
+        except Exception as e:
+            last_few = original_pk[-40:].replace("\n", " [NL] ") if original_pk else "None"
+            return False, f"❌ PEM Error: {e}\n\n**Diagnostic:** Key end snippet: `{last_few}`.\n\n**Length:** {len(original_pk)} chars."
 
         gc = gspread.authorize(creds)
         sh = gc.open_by_key(SHEET_ID)
@@ -325,22 +310,16 @@ def sync_to_google_sheet(applied_dict):
         return False, f"❌ Sync failed: {e}"
 
 def fetch_applied_from_gsheet():
-    """On startup, load previously applied jobs from GSheet to maintain state."""
+    """On startup, load previously applied jobs from GSheet."""
     try:
         import gspread
         from google.oauth2.service_account import Credentials
         
         scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-        creds_info = None
-        if "gcp_service_account" in st.secrets:
-            creds_info = dict(st.secrets["gcp_service_account"])
-        elif Path(CREDS_FILE).exists():
-            with open(CREDS_FILE) as f:
-                creds_info = json.load(f)
-
+        creds_info = get_creds_info()
         if not creds_info: return {}
         
-        if "private_key" in creds_info:
+        if creds_info.get("private_key"):
             creds_info["private_key"] = clean_private_key(creds_info["private_key"])
             
         creds = Credentials.from_service_account_info(creds_info, scopes=scopes)
@@ -353,7 +332,7 @@ def fetch_applied_from_gsheet():
         records = ws.get_all_records()
         pulled = {}
         for r in records:
-            url = normalize(r.get("URL", ""))
+            url = normalize(str(r.get("URL", "")))
             if url:
                 pulled[url] = {
                     "title": r.get("Title", ""),
